@@ -179,6 +179,8 @@ class GeneratorPlayer : FullScreenPlayer() {
         isActive = false
         binding?.overlayLoadingSkipButton?.isVisible = false
         binding?.playerLoadingOverlay?.isVisible = true
+        binding?.playerLoadingMetadata?.isVisible = true
+        updateLoadingMetadata()
     }
 
     private fun setSubtitles(subtitle: SubtitleData?): Boolean {
@@ -222,6 +224,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (player.getIsPlaying()) {
             viewModel.forceClearCache = false
         }
+        binding?.playerLoadingMetadata?.isVisible = player.getIsPlaying()
     }
 
     private fun noSubtitles(): Boolean {
@@ -489,6 +492,7 @@ class GeneratorPlayer : FullScreenPlayer() {
 
         // manage UI
         binding?.playerLoadingOverlay?.isVisible = false
+        binding?.playerLoadingMetadata?.isVisible = false
         val isTorrent =
             link.first?.type == ExtractorLinkType.MAGNET || link.first?.type == ExtractorLinkType.TORRENT
 
@@ -1808,6 +1812,50 @@ class GeneratorPlayer : FullScreenPlayer() {
         playerBinding?.playerVideoTitle?.text = playerVideoTitle
         playerBinding?.offlinePin?.isVisible = lastUsedGenerator is DownloadFileGenerator
     }
+
+    private fun updateLoadingMetadata() {
+        val b = binding ?: return
+
+        val load = viewModel.getLoadResponse() ?: return
+        val episode = currentMeta as? ResultEpisode
+
+        b.playerMovieTitle.text = load.name
+
+        b.playerContentType.text = when {
+            load.type.isAnimeOp() -> "ANIME"
+            load.type.isMovieType() -> "MOVIE"
+            else -> "SERIES"
+        }
+
+        val metaParts = mutableListOf<String>()
+
+        load.tags?.takeIf { it.isNotEmpty() }?.let {
+            metaParts += it.joinToString(", ")
+        }
+
+        load.year?.let { metaParts += it.toString() }
+
+        if (!load.type.isMovieType()) {
+            episode?.season?.let { s ->
+                episode.episode.let { e ->
+                    metaParts += "S$s • E$e"
+                }
+            }
+        }
+
+        b.playerMovieMeta.text = metaParts.joinToString(" • ")
+
+        val extraParts = mutableListOf<String>()
+
+        load.score?.let { extraParts += "⭐ $it" }
+        load.duration?.let { extraParts += "$it min" }
+
+        b.playerMovieExtra.text = extraParts.joinToString(" • ")
+        b.playerMovieExtra.isVisible = extraParts.isNotEmpty()
+
+    }
+
+
 
     @SuppressLint("SetTextI18n")
     fun setPlayerDimen(widthHeight: Pair<Int, Int>?) {
