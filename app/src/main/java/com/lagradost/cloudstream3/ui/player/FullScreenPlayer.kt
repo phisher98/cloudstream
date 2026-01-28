@@ -231,6 +231,27 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
     }
 
 
+    private fun scheduleMetadataVisibility() {
+        val metadataScrim = playerBinding?.root?.findViewById<View>(R.id.player_metadata_scrim)
+        val isPaused = currentPlayerStatus == CSPlayerLoading.IsPaused
+
+        if (isPaused) {
+            playerBinding?.playerHolder?.postDelayed({
+                metadataScrim?.apply {
+                    isVisible = true
+                    alpha = 1f
+                }
+            }, 8000L)
+        } else {
+            metadataScrim?.apply {
+                animate().cancel()
+                isVisible = false
+                alpha = 0f
+            }
+        }
+    }
+
+
     fun setGpuExtraBrightness(extra: Float) {
         gpuBrightnessFilter?.setBrightness(extra)
     }
@@ -246,6 +267,7 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
 
     override fun onDestroyView() {
         // Clean up dynamic GPUPlayerView if created
+
         safe {
             gpuPlayerView?.onPause()
             gpuPlayerView?.setGlFilter(null)
@@ -387,6 +409,7 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
                 start()
             }
         }
+
 
         val playerBarMove = if (isShowing) 0f else 50.toPx.toFloat()
         playerBinding?.bottomPlayerBar?.let {
@@ -563,6 +586,7 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
     override fun onResume() {
         enterFullscreen()
         verifyVolume()
+        playerBinding?.root?.findViewById<View>(R.id.player_metadata_scrim)?.isVisible = false
         activity?.attachBackPressedCallback("FullScreenPlayer") {
             if (isShowingEpisodeOverlay) {
                 // isShowingEpisodeOverlay pauses, so this makes it easier to unpause
@@ -938,9 +962,9 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
             // BOTTOM
             playerLockHolder.startAnimation(fadeAnimation)
             // player_go_back_holder?.startAnimation(fadeAnimation)
-
             shadowOverlay.isVisible = true
             shadowOverlay.startAnimation(fadeAnimation)
+            player
         }
         updateLockUI()
     }
@@ -1009,6 +1033,7 @@ open class FullScreenPlayer : AbstractPlayerFragment() {
 
     override fun playerStatusChanged() {
         super.playerStatusChanged()
+        scheduleMetadataVisibility()
         delayHide()
     }
 

@@ -179,8 +179,6 @@ class GeneratorPlayer : FullScreenPlayer() {
         isActive = false
         binding?.overlayLoadingSkipButton?.isVisible = false
         binding?.playerLoadingOverlay?.isVisible = true
-        binding?.playerLoadingMetadata?.isVisible = true
-        updateLoadingMetadata()
     }
 
     private fun setSubtitles(subtitle: SubtitleData?): Boolean {
@@ -225,7 +223,6 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (player.getIsPlaying()) {
             viewModel.forceClearCache = false
         }
-        binding?.playerLoadingMetadata?.isVisible = player.getIsPlaying()
     }
 
     private fun noSubtitles(): Boolean {
@@ -490,10 +487,8 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private fun loadLink(link: Pair<ExtractorLink?, ExtractorUri?>?, sameEpisode: Boolean) {
         if (link == null) return
-
         // manage UI
         binding?.playerLoadingOverlay?.isVisible = false
-        binding?.playerLoadingMetadata?.isVisible = false
         val isTorrent =
             link.first?.type == ExtractorLinkType.MAGNET || link.first?.type == ExtractorLinkType.TORRENT
 
@@ -1538,13 +1533,13 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private fun startPlayer() {
         if (isActive) return // we don't want double load when you skip loading
-
         val links = sortLinks(currentQualityProfile)
         if (links.isEmpty()) {
             noLinksFound()
             return
         }
         loadLink(links.first(), false)
+        showPlayerMetadata()
     }
 
     override fun nextEpisode() {
@@ -1813,47 +1808,56 @@ class GeneratorPlayer : FullScreenPlayer() {
         playerBinding?.offlinePin?.isVisible = lastUsedGenerator is DownloadFileGenerator
     }
 
-    private fun updateLoadingMetadata() {
-        val b = binding ?: return
+    private fun showPlayerMetadata() {
+        val root = binding?.root ?: return
+        val overlay = root.findViewById<View>(R.id.player_metadata_scrim) ?: return
+
+        val titleView = overlay.findViewById<TextView>(R.id.player_movie_title)
+        val logoView = overlay.findViewById<ImageView>(R.id.player_movie_logo)
+        val metaView = overlay.findViewById<TextView>(R.id.player_movie_meta)
+        val descView = overlay.findViewById<TextView>(R.id.player_movie_overview)
 
         val load = viewModel.getLoadResponse() ?: return
         val episode = currentMeta as? ResultEpisode
 
-        b.playerMovieTitle.text = load.name
+        val logoUrl = load.logoUrl
 
-        b.playerContentType.text = when {
-            load.type.isAnimeOp() -> "ANIME"
-            load.type.isMovieType() -> "MOVIE"
-            else -> "SERIES"
-        }
-
-        val metaParts = mutableListOf<String>()
-
-        load.tags?.takeIf { it.isNotEmpty() }?.let {
-            metaParts += it.joinToString(", ")
-        }
-
-        load.year?.let { metaParts += it.toString() }
-
-        if (!load.type.isMovieType()) {
-            episode?.season?.let { s ->
-                episode.episode.let { e ->
-                    metaParts += "S$s • E$e"
-                }
+        if (!logoUrl.isNullOrBlank()) {
+            logoView.isVisible = true
+            titleView.isVisible = false
+            CloudStreamApp.context?.getImageBitmapFromUrl(logoUrl)?.let {
+                logoView.setImageBitmap(it)
             }
+        } else {
+            logoView.isVisible = false
+            titleView.isVisible = true
+            titleView.text = load.name
         }
 
-        b.playerMovieMeta.text = metaParts.joinToString(" • ")
+        val meta = arrayOf(
+            load.tags?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+            load.year?.toString(),
+            if (!load.type.isMovieType())
+                episode?.let { "S${it.season} • E${it.episode}" }
+            else null,
+            load.score?.let { "⭐ $it" }
+        ).filterNotNull()
+            .joinToString(" • ")
 
-        val extraParts = mutableListOf<String>()
+        metaView.text = meta
+        metaView.isVisible = meta.isNotBlank()
 
-        load.score?.let { extraParts += "⭐ $it" }
-        load.duration?.let { extraParts += "$it min" }
+        val description = load.plot
 
-        b.playerMovieExtra.text = extraParts.joinToString(" • ")
-        b.playerMovieExtra.isVisible = extraParts.isNotEmpty()
-
+        if (!description.isNullOrBlank()) {
+            descView.isVisible = true
+            descView.text = description
+        } else {
+            descView.isVisible = false
+        }
     }
+
+
 
 
 
@@ -2154,7 +2158,6 @@ class GeneratorPlayer : FullScreenPlayer() {
         observe(viewModel.currentStamps) { stamps ->
             player.addTimeStamps(stamps)
         }
-
         observe(viewModel.loadingLinks) {
             when (it) {
                 is Resource.Loading -> {
